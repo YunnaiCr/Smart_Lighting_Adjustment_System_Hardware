@@ -1,8 +1,9 @@
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
 #include <time.h>
-#include <ArduinoJson.h>
 #include <SoftwareSerial.h>
+
+#include "src/JsonFactory.h"
 
 // WiFi设置
 const char *ssid = "wyxbupt";
@@ -66,7 +67,6 @@ void mqttCallback(char *topic, byte *payload, unsigned int length);
 void sendToArduino(const String& command);
 void sendArduinoResponseToMQTT(const String& response);
 void sendStatusQuery();
-String createJsonMessage(const char* key, const String& value);
 
 void setup() {
   // 初始化硬件串口(用于调试输出)
@@ -131,7 +131,7 @@ bool connectToMQTTBroker() {
     Serial.println("已订阅主题: " + String(mqtt_topic));
     
     // 发布连接成功消息
-    String connectMsg = createJsonMessage("status", "ESP8266已连接，正在查询Arduino状态");
+    String connectMsg = ConverseDataToJson("status", "ESP8266已连接，正在查询Arduino状态");
     mqtt_client.publish(mqtt_status_topic, connectMsg.c_str(), true); // 保留消息
     
     // 连接成功后，立即查询Arduino状态
@@ -166,50 +166,40 @@ void mqttCallback(char *topic, byte *payload, unsigned int length) {
   Serial.println();
   
   // 解析MQTT消息
-  StaticJsonDocument<200> doc;
+  StaticJsonDocument<512> doc;
   DeserializationError error = deserializeJson(doc, message);
   
   if (!error) {
-    // 检查是否包含OperationMode命令
-    if (doc.containsKey("OperationMode")) {
-      String mode = doc["OperationMode"].as<String>();
-      
-      // 创建发送给Arduino的命令
-      StaticJsonDocument<100> cmdDoc;
-      cmdDoc["OperationMode"] = mode;
-      
-      String arduinoCmd;
-      serializeJson(cmdDoc, arduinoCmd);
-      
-      // 发送操作模式命令到Arduino
-      sendToArduino(arduinoCmd);
-      Serial.println("已发送操作模式命令: " + mode);
-      
-      return;
-    }
-    
-    // 检查是否包含LightMode命令
-    if (doc.containsKey("LightMode")) {
-      String mode = doc["LightMode"].as<String>();
-      
-      // 创建发送给Arduino的命令
-      StaticJsonDocument<100> cmdDoc;
-      cmdDoc["LightMode"] = mode;
-      
-      String arduinoCmd;
-      serializeJson(cmdDoc, arduinoCmd);
-      
-      // 发送灯光模式命令到Arduino
-      sendToArduino(arduinoCmd);
-      Serial.println("已发送灯光模式命令: " + mode);
-      
-      return;
-    }
+      // 命令列表
+      const char* commands[] = {"OperationMode", "LightMode"};
+
+      for (const char* command : commands) {
+          // 判断是否包含指定命令
+          if (doc.containsKey(command)) {
+              // 提取命令参数
+              String mode = doc[command].as<String>();
+
+              // 创建 JSON 命令
+              StaticJsonDocument<64> cmdDoc;
+              cmdDoc[command] = mode;
+
+              // 序列化 JSON
+              String arduinoCmd;
+              serializeJson(cmdDoc, arduinoCmd);
+
+              // 发送命令
+              sendToArduino(arduinoCmd);
+              Serial.println("已发送命令: " + String(command) + " -> " + mode);
+
+              return;
+          }
+      }
+      // 未匹配任何命令，直接转发
+      sendToArduino(message);
+  } else {
+      Serial.println("JSON 解析错误");
   }
-  
-  // 如果没有特殊处理的命令，直接将MQTT消息转发给Arduino
-  sendToArduino(message);
-  
+
   Serial.println("--------------------------------");
 }
 
@@ -225,16 +215,6 @@ void sendStatusQuery() {
   Serial.println("查询Arduino当前状态...");
   String queryCommand = "{\"Query\":\"Status\"}";
   sendToArduino(queryCommand);
-}
-
-// 创建简单的JSON消息
-String createJsonMessage(const char* key, const String& value) {
-  StaticJsonDocument<200> doc;
-  doc[key] = value;
-  
-  String jsonString;
-  serializeJson(doc, jsonString);
-  return jsonString;
 }
 
 // 将Arduino响应发送回MQTT
