@@ -20,7 +20,9 @@ const char *ntp_server = "pool.ntp.org";
 const long gmt_offset_sec = 28800;
 const int daylight_offset_sec = 0;
 
-// 定义软件串口 - D2(GPIO4)、D1(GPIO5)用于与Arduino通信
+// 定义软件串口 - 连接到Arduino的新引脚
+// ESP8266 D2(GPIO 4)连接到Arduino的D6(TX)
+// ESP8266 D1(GPIO 5)连接到Arduino的D5(RX)
 SoftwareSerial ArduinoSerial(4, 5); // RX, TX
 
 BearSSL::WiFiClientSecure espClient;
@@ -246,12 +248,19 @@ void sendArduinoResponseToMQTT(const String& response) {
   }
 }
 
-// 在loop函数中修改接收Arduino响应的部分
-
 void loop() {
   // 检查MQTT连接状态
   if (!mqtt_client.connected()) {
-    // ... 现有代码保持不变 ...
+    unsigned long now = millis();
+    if (now - lastReconnectAttempt > 5000) {
+      lastReconnectAttempt = now;
+      Serial.println("MQTT断开连接，尝试重连...");
+      
+      // 尝试重新连接
+      if (connectToMQTTBroker()) {
+        lastReconnectAttempt = 0;
+      }
+    }
   } else {
     mqtt_client.loop();
   }
