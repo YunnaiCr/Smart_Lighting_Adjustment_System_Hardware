@@ -7,6 +7,10 @@ const int redPin = 9;           // 红色通道，PWM引脚
 const int greenPin = 10;        // 绿色通道，PWM引脚
 const int bluePin = 11;         // 蓝色通道，PWM引脚
 
+int voiceReddata=0;
+int voiceGreendata=0;
+int voiceBluedata=0;
+
 // 创建软件串口用于ESP8266通信
 SoftwareSerial espSerial(5, 6);  // RX, TX (连接ESP8266)
 
@@ -191,10 +195,14 @@ void checkVoiceCommands() {
   if (Serial.available() >= 4) {  // 确保至少收到4个字节
     byte receivedData[4];
     Serial.readBytes(receivedData, 4);  // 读取4个字节
-    
+  
     String oldCommand = voiceCommand;
     String commandHex = "";
     
+// int voiceReddata=0;
+// int voiceGreendata=0;
+// int voiceBluedata=0;
+
     for (int i = 0; i < 4; i++) {
       char hexStr[3];
       sprintf(hexStr, "%02X", receivedData[i]);
@@ -206,29 +214,141 @@ void checkVoiceCommands() {
     espSerial.println(commandHex);
     
     // 判断接收到的命令
-    if (receivedData[0] == 0xA1 && receivedData[1] == 0xA1 &&
-        receivedData[2] == 0xA1 && receivedData[3] == 0xA1) {
-      // 蓝灯 - 可以映射为Night模式
-      setLEDColor(255, 255, 0);  // 蓝灯亮(0是最亮)
-      voiceCommand = "Blue";
-      lightMode = "Voice-Blue";
-      espSerial.println("语音命令：蓝灯开启");
+    if (receivedData[0] == 0xA3 && receivedData[1] == 0xA3 &&
+        receivedData[2] == 0xA3 && receivedData[3] == 0xA3) {
+       voiceReddata=0;
+       voiceGreendata=0;
+       voiceBluedata=0;
+      setLEDColor(voiceReddata,voiceGreendata,voiceBluedata);  // 亮白灯
+      voiceCommand = "White";
+      lightMode = "Voice-white";
+      espSerial.println("语音命令：开启客厅灯");
     }
-    else if (receivedData[0] == 0xA2 && receivedData[1] == 0xA2 &&
-             receivedData[2] == 0xA2 && receivedData[3] == 0xA2) {
-      // 红灯 - 可以映射为Warm模式
-      setLEDColor(0, 255, 255);  // 红灯亮(0是最亮)
-      voiceCommand = "Red";
-      lightMode = "Voice-Red";
-      espSerial.println("语音命令：红灯开启");
+    else if (receivedData[0] == 0xA4 && receivedData[1] == 0xA4 &&
+             receivedData[2] == 0xA4 && receivedData[3] == 0xA4) {
+      voiceReddata=255;
+       voiceGreendata=255;
+       voiceBluedata=255;
+      setLEDColor(voiceReddata,voiceGreendata,voiceBluedata);  
+      voiceCommand = "Black";
+      lightMode = "Voice-Black";
+      espSerial.println("语音命令:关闭客厅灯");
     }
-    else if (receivedData[0] == 0xA3 && receivedData[1] == 0xA3 &&
-             receivedData[2] == 0xA3 && receivedData[3] == 0xA3) {
-      // 绿灯 - 自定义模式
-      setLEDColor(255, 0, 255);  // 绿灯亮(0是最亮)
-      voiceCommand = "Green";
-      lightMode = "Voice-Green";
-      espSerial.println("语音命令：绿灯开启");
+    else if (receivedData[0] == 0xA7 && receivedData[1] == 0xA7 &&
+             receivedData[2] == 0xA7 && receivedData[3] == 0xA7) {
+      //白光状态下且降低后亮度不是最大
+       if(voiceReddata == voiceGreendata && voiceBluedata==voiceGreendata && voiceReddata>=20 )
+       {
+        voiceReddata-=20;
+       voiceGreendata-=20;
+       voiceBluedata-=20;
+       }
+       //白光状态且降低后亮度是最大
+       else if(voiceReddata == voiceGreendata && voiceBluedata==voiceGreendata && voiceReddata<20 )
+       {
+         voiceReddata=0;
+         voiceGreendata=0;
+         voiceBluedata=0;
+       }
+       //其他状态
+       else 
+       {
+         voiceReddata*=0.8;
+         voiceGreendata*=0.8;
+         voiceBluedata*=0.8;
+       }
+      setLEDColor(voiceReddata,voiceGreendata,voiceBluedata);  
+      voiceCommand = "light up";
+      lightMode = "Voice-up";
+      espSerial.println("语音命令：亮度调高");
+    }
+    else if (receivedData[0] == 0xA8 && receivedData[1] == 0xA8 &&
+             receivedData[2] == 0xA8 && receivedData[3] == 0xA8) {
+      //白光状态下且增大后亮度不是最小
+       if(voiceReddata == voiceGreendata && voiceBluedata==voiceGreendata && voiceReddata<=235 )
+       {
+        voiceReddata+=20;
+       voiceGreendata+=20;
+       voiceBluedata+=20;
+       }
+       //白光状态且增大后亮度是最小
+       else if(voiceReddata == voiceGreendata && voiceBluedata==voiceGreendata && voiceReddata>235 )
+       {
+         voiceReddata=255;
+         voiceGreendata=255;
+         voiceBluedata=255;
+       }
+       //彩色灯变暗且不会溢出
+       else if (voiceReddata<=212 && voiceGreendata<=212 && voiceBluedata<=212 )
+       {
+         voiceReddata*=1.2;
+         voiceGreendata*=1.2;
+         voiceBluedata*=1.2;
+       }
+       //其他情况保持不变
+       else
+       {
+         voiceReddata=voiceReddata;
+         voiceGreendata=voiceGreendata;
+         voiceBluedata=voiceBluedata;
+       }
+      setLEDColor(voiceReddata,voiceGreendata,voiceBluedata);  
+      voiceCommand = "light down";
+      lightMode = "Voice-down";
+      espSerial.println("语音命令：亮度调低");
+    }
+    else if (receivedData[0] == 0xA9 && receivedData[1] == 0xA9 &&
+             receivedData[2] == 0xA9 && receivedData[3] == 0xA9) {
+      // const int WARM_MODE_R = 0, WARM_MODE_G = 75, WARM_MODE_B = 155;           // 温暖模式 - 暖黄色光
+      voiceReddata=0;
+      voiceGreendata=75;
+      voiceBluedata=155;
+      setLEDColor(voiceReddata,voiceGreendata,voiceBluedata);  
+      voiceCommand = "light Soft";
+      lightMode = "Voice-soft";
+      espSerial.println("语音命令：打开柔光灯");
+    }
+    else if (receivedData[0] == 0x10 && receivedData[1] == 0x10 &&
+             receivedData[2] == 0x10 && receivedData[3] == 0x10) {
+      // const int WARM_MODE_R = 0, WARM_MODE_G = 75, WARM_MODE_B = 155;           // 温暖模式 - 暖黄色光
+      voiceReddata=0;
+      voiceGreendata=75;
+      voiceBluedata=155;
+      setLEDColor(voiceReddata,voiceGreendata,voiceBluedata);  
+      voiceCommand = "Read model";
+      lightMode = "Voice-read";
+      espSerial.println("语音命令：打开阅读模式");
+    }
+    else if (receivedData[0] == 0x11 && receivedData[1] == 0x11 &&
+             receivedData[2] == 0x11 && receivedData[3] == 0x11) {
+      voiceReddata=255;
+      voiceGreendata=255;
+      voiceBluedata=255;
+      setLEDColor(voiceReddata,voiceGreendata,voiceBluedata);  
+      voiceCommand = "Read model-c";
+      lightMode = "Voice-read-c";
+      espSerial.println("语音命令：关闭阅读模式");
+    }
+    else if (receivedData[0] == 0x12 && receivedData[1] == 0x12 &&
+             receivedData[2] == 0x12 && receivedData[3] == 0x12) {
+      // const int WARM_MODE_R = 0, WARM_MODE_G = 75, WARM_MODE_B = 155;           
+      voiceReddata=60;
+      voiceGreendata=120;
+      voiceBluedata=230;
+      setLEDColor(voiceReddata,voiceGreendata,voiceBluedata);  
+      voiceCommand = "Read model-c";
+      lightMode = "Voice-read-c";
+      espSerial.println("语音命令：打开睡眠模式");
+    }
+     else if (receivedData[0] == 0x13 && receivedData[1] == 0x13 &&
+             receivedData[2] == 0x13 && receivedData[3] == 0x13) {          
+      voiceReddata=255;
+      voiceGreendata=255;
+      voiceBluedata=255;
+      setLEDColor(voiceReddata,voiceGreendata,voiceBluedata);  
+      voiceCommand = "Read model-c";
+      lightMode = "Voice-read-c";
+      espSerial.println("语音命令：关闭睡眠模式");
     }
     else {
       // 无效命令 - 不改变当前状态
