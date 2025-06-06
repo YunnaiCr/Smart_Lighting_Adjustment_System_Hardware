@@ -8,7 +8,7 @@ void AddToDoc(StaticJsonDocument<512>& doc, const String& key, int value);
 void AddToDoc(StaticJsonDocument<512>& doc, const String& key, bool value);
 void AddToDoc(StaticJsonDocument<512>& doc, const String& key, const char* value);
 void AddToDoc(StaticJsonDocument<512>& doc, const String& key, const String& value);
-
+void AddToDoc(StaticJsonDocument<512>& doc, const String& key, float value);
 // 递归终止条件 - 直接在头文件中实现模板函数
 inline void AddToDocRecursive(StaticJsonDocument<512>& doc) {
     // 递归终止，不执行任何操作

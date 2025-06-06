@@ -16,5 +16,6 @@ void AddToDoc(StaticJsonDocument<512>& doc, const String& key, const char* value
 void AddToDoc(StaticJsonDocument<512>& doc, const String& key, const String& value) {
     doc[key] = value;
 }
-
-
+void AddToDoc(StaticJsonDocument<512>& doc, const String& key, const float value) {
+    doc[key] = value;
+}
