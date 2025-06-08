@@ -10,6 +10,8 @@ extern const char *password;
 extern const char *mqtt_broker;
 extern const char *mqtt_app_topic;  // 接收APP消息的主题
 extern const char *mqtt_esp_topic;  // 发送ESP状态的主题
+extern const char *mqtt_app_status_topic;
+extern const char *mqtt_esp_status_topic;
 extern const char *mqtt_username;
 extern const char *mqtt_password;
 extern const int mqtt_port;

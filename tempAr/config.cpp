@@ -6,8 +6,10 @@ const char *password = "wuyuxin155";
 
 // MQTT设置
 const char *mqtt_broker = "jfe2a84f.ala.cn-hangzhou.emqxsl.cn";
-const char *mqtt_app_topic = "light/livingroom/app";
-const char *mqtt_esp_topic = "light/livingroom/esp";
+const char *mqtt_app_topic = "light/room1/app";
+const char *mqtt_esp_topic = "light/room1/esp";
+const char *mqtt_app_status_topic = "light/room1/app/status";
+const char *mqtt_esp_status_topic = "light/room1/esp/status";
 const char *mqtt_username = "Yunnai";
 const char *mqtt_password = "azathoth";
 const int mqtt_port = 8883;

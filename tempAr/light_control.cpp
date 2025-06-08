@@ -12,7 +12,7 @@ void setLEDColor(int red, int green, int blue) {
   analogWrite(bluePin, espBlue);
 }
 
-// 情景模式（手动模式 part == 0）
+// 情景模式（手动模式 part == false）
 void setSceneMode(const String& mode) {
   String oldSceneMode = sceneMode;
   bool applied = false;
@@ -103,14 +103,14 @@ Serial.printf("亮度等级: %.1f (比例: %.2f), PWM: (%d, %d, %d)\n",
 }
 
 // 处理part切换逻辑
-void handlePartChange(int newPart) {
+void handlePartChange(bool newPart) {
   if (part == newPart) return;
   
   part = newPart;
   Serial.print("已切换 manualMode 子模式为: ");
-  Serial.println(part == 0 ? "sceneMode (0)" : "colorBrightness (1)");
+  Serial.println(part == false ? "sceneMode (0)" : "colorBrightness (1)");
   
-  if (part == 0) {
+  if (part == false) {
     // 切换到情景模式
     setSceneMode(sceneMode);
   } else {
@@ -264,6 +264,8 @@ void checkVoiceCommands() {
              receivedData[2] == 0xD1 && receivedData[3] == 0xD1) {
       Serial.println("语音命令：切换到自动模式");
       switchFromVoiceMode("autoMode");
+      byte exitVoiceCmd[] = {0xAA, 0x01, 0x01, 0x00, 0x00, 0x00, 0x55, 0xAA};
+      Serial.write(exitVoiceCmd, sizeof(exitVoiceCmd));
       return; // 直接返回，因为已经不在语音模式了
     }
     else {
@@ -296,15 +298,16 @@ void setOperationMode(const String& newMode) {
   operationMode = newMode;
   if (newMode == "autoMode") {
     Serial.println("已切换到自动调节模式");
+
   }
   else if (newMode == "manualMode") {
     if (!manualModeEverEntered) {
-      part = 0;
+      part = false;
       sceneMode = "Reading";
       setManualModeState(part, sceneMode, READING_SCENE_R, READING_SCENE_G, READING_SCENE_B);
       manualModeEverEntered = true;
     } else {
-      if (part == 0) {
+      if (part == false) {
         setSceneMode(sceneMode);
       } else {
         setLEDColor(manualRedValue, manualGreenValue, manualBlueValue);
@@ -325,13 +328,13 @@ void setOperationMode(const String& newMode) {
 }
 
 // setManualModeState 函数保持不变，它负责应用传入的特定手动模式状态
-void setManualModeState(int targetPart, String targetSceneMode, int r, int g, int b) {
+void setManualModeState(bool targetPart, String targetSceneMode, int r, int g, int b) {
     part = targetPart;
     sceneMode = targetSceneMode;
     manualRedValue = r;
     manualGreenValue = g;
     manualBlueValue = b;
-    if (part == 0) {
+    if (part == false) {
         setSceneMode(sceneMode);
     } else {
 

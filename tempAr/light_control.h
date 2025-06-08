@@ -13,6 +13,6 @@ void adjustBrightnessForManualMode(float level);
 void adjustLightingBasedOnSensor();
 void checkVoiceCommands();
 void setOperationMode(const String& newMode);
-void setManualModeState(int targetPart, String targetSceneMode, int r, int g, int b);
-void handlePartChange(int newPart);
+void setManualModeState(bool targetPart, String targetSceneMode, int r, int g, int b);
+void handlePartChange(bool newPart);
 #endif

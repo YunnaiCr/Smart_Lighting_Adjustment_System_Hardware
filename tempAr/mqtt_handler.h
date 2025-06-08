@@ -11,8 +11,7 @@
 #include "network.h"       // 包含外部链接的mqtt_client
 
 void mqttCallback(char* topic, byte* payload, unsigned int length);
-void parseStatusString(const String& statusStr);
-void sendStatusString();
+void sendStatusToApp();
 void sendModeChangeToApp(const String& newMode);
 void switchFromVoiceMode(const String& newMode);
 #endif

@@ -1,6 +1,6 @@
 #include "mqtt_handler.h"
 
-// 发送模式变更通知到APP
+// 发送模式变更通知到APP（通过普通通道发送JSON）
 void sendModeChangeToApp(const String& newMode) {
   if (!mqtt_client.connected()) {
     Serial.println("MQTT未连接，无法发送模式变更通知");
@@ -9,7 +9,7 @@ void sendModeChangeToApp(const String& newMode) {
   String jsonCmd = ConverseDataToJson(
     "operationMode", newMode
   );
-  if (mqtt_client.publish(mqtt_esp_topic, jsonCmd.c_str())) {
+  if (mqtt_client.publish(mqtt_app_topic, jsonCmd.c_str())) {
     Serial.println("已发送模式变更通知: " + jsonCmd);
   } else {
     Serial.println("模式变更通知发送失败!");
@@ -22,113 +22,23 @@ void switchFromVoiceMode(const String& newMode) {
   sendModeChangeToApp(newMode);//esp端用语音切换模式和app进行同步
 }
 
-// 状态字符串解析函数
-void parseStatusString(const String& statusStr) {
-  int index = 0;
-  int lastIndex = 0;
-  String values[5]; // 五个值: operationMode, part, sceneMode, color, brightness
-  
-  // 分割字符串
-  for(int i = 0; i < 5; i++) {
-    index = statusStr.indexOf(',', lastIndex);
-    if(index == -1 && i < 4) {
-      Serial.println("状态字符串格式错误: " + statusStr);
-      return;
-    }
-    if(i == 4 || index == -1) {
-      values[i] = statusStr.substring(lastIndex);
-    } else {
-      values[i] = statusStr.substring(lastIndex, index);
-      lastIndex = index + 1;
-    }
-  }
-  
-  Serial.println("解析状态: [操作模式=" + values[0] + ", part=" + values[1] +
-                ", 场景=" + values[2] + ", 颜色=" + values[3] +
-                ", 亮度=" + values[4] + "]");
-  
-  // 保存所有参数
-  String newMode = values[0].length() > 0 ? values[0] : operationMode;
-  int newPart = values[1].length() > 0 ? values[1].toInt() : part;
-  String newSceneMode = values[2].length() > 0 ? values[2] : sceneMode;
-  
-  // 处理颜色更新
-  if(values[3].length() > 0) {
-    String newColor = values[3];
-    if (newColor == "white") {
-      currentColorBaseR = WHITE_MODE_R;
-      currentColorBaseG = WHITE_MODE_G;
-      currentColorBaseB = WHITE_MODE_B;
-      currentBaseColorName = "white";
-    } else if (newColor == "warm") {
-      currentColorBaseR = WARM_MODE_R;
-      currentColorBaseG = WARM_MODE_G;
-      currentColorBaseB = WARM_MODE_B;
-      currentBaseColorName = "warm";
-    } else if (newColor == "night") {
-      currentColorBaseR = NIGHT_MODE_R;
-      currentColorBaseG = NIGHT_MODE_G;
-      currentColorBaseB = NIGHT_MODE_B;
-      currentBaseColorName = "night";
-    }
-    Serial.println("更新 color = " + currentBaseColorName);
-  }
-  
-  // 处理亮度更新
-  if(values[4].length() > 0) {
-    currentBrightnessLevel = values[4].toFloat();
-    currentBrightnessLevel = constrain(currentBrightnessLevel, 1.0f, 5.0f);
-    Serial.println("更新 brightness = " + String(currentBrightnessLevel));
-  }
-  
-  // 根据颜色和亮度计算RGB值
-  if(values[3].length() > 0 || values[4].length() > 0) {
-    float scale = currentBrightnessLevel / 5.0f;
-    int scaledR = int(currentColorBaseR * scale);
-    int scaledG = int(currentColorBaseG * scale);
-    int scaledB = int(currentColorBaseB * scale);
-    
-    manualRedValue = constrain(255 - scaledR, 0, 255);
-    manualGreenValue = constrain(255 - scaledG, 0, 255);
-    manualBlueValue = constrain(255 - scaledB, 0, 255);
-    Serial.printf("根据颜色和亮度更新RGB: (%d, %d, %d)\n", manualRedValue, manualGreenValue, manualBlueValue);
-  }
-  
-  // 更新部分和场景模式
-  part = newPart;
-  sceneMode = newSceneMode;
-  
-  // 设置操作模式，应用设置
-  if(newMode != operationMode) {
-    setOperationMode(newMode);
-  } else if(newMode == "manualMode") {
-    // 已经在手动模式，直接应用设置
-    if(part == 0) {
-      setSceneMode(sceneMode);
-    } else {
-      setLEDColor(manualRedValue, manualGreenValue, manualBlueValue);
-    }
-  }
-  
-  Serial.println("状态已完全应用");
-}
-
-// 向app发送状态字符串
-void sendStatusString() {
+void sendStatusToApp() {
   if (!mqtt_client.connected()) {
     Serial.println("MQTT未连接，无法发送状态");
     return;
   }
   
-  // 构建状态字符串：operationMode,part,sceneMode,color,brightness
-  String statusStr = operationMode + "," +
-                     String(part) + "," +
-                     sceneMode + "," +
-                     currentBaseColorName + "," +
-                     String(currentBrightnessLevel);
+  // 构建JSON状态（移除fullStatus参数，只发送实际状态值）
+  String statusJson = ConverseDataToJson(
+    "operationMode", operationMode,
+    "part", part,
+    "sceneMode", sceneMode,
+    "color", currentBaseColorName,
+    "brightness", currentBrightnessLevel
+  );
   
-  if (mqtt_client.publish(mqtt_esp_topic, statusStr.c_str())) {
-    Serial.println("已发送状态: " + statusStr);
+  if (mqtt_client.publish(mqtt_app_topic, statusJson.c_str())) {
+    Serial.println("已发送状态: " + statusJson);
   } else {
     Serial.println("状态发送失败!");
   }
@@ -146,95 +56,147 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   }
   Serial.println("消息内容: " + message);
   
-  // 如果是APP主题的消息
-  if (String(topic) == String(mqtt_app_topic)) {
-    
+  String topicStr = String(topic);
+  
+  // 处理状态通道的同步请求
+  if (topicStr == String(mqtt_esp_status_topic)) {
     // 检查是否是同步请求
-   if (message.indexOf("sync") != -1 || message.equals("sync")) {
+    if (message.indexOf("sync") != -1 || message.equals("sync")) {
       Serial.println("收到APP同步请求，发送当前状态");
-        sendStatusString();
-       return;
+      sendStatusToApp();
+      return;
     }
-    
-    // 尝试解析为JSON (普通控制命令)
+    Serial.println("收到未知状态通道消息: " + message);
+    return;
+  }
+  
+  // 处理普通通道的JSON消息
+  if (topicStr == String(mqtt_esp_topic)) {
+    // 解析JSON
     StaticJsonDocument<256> doc;
     DeserializationError error = deserializeJson(doc, message);
     
     if (error) {
-      // 如果不是JSON，尝试作为状态字符串解析
-      if (message.indexOf(',') != -1) {
-        Serial.println("接收到状态字符串，解析中...");
-        parseStatusString(message);
-      } else {
-        Serial.print(F("消息格式无法识别: "));
-        Serial.println(message);
-      }
+      Serial.print(F("JSON解析失败: "));
+      Serial.println(error.f_str());
       return;
     }
     
-    // 处理JSON命令
-    if (doc.containsKey("operationMode")) {
-      String newOpModeFromMqtt = doc["operationMode"].as<String>();
-      if (operationMode != newOpModeFromMqtt) {
-        setOperationMode(newOpModeFromMqtt);
-      }
-    }
+    // 统一处理所有参数 - 先保存，最后应用
+    bool needUpdate = false;
     
-    if (operationMode == "manualMode" && doc.containsKey("part")) {
-      int newPart = doc["part"].as<int>();
-      if (newPart == 0 || newPart == 1) {
-        handlePartChange(newPart); // 使用专门的处理函数
+    // 保存part
+    if (doc.containsKey("part")) {
+      bool newPart = doc["part"].as<bool>();
+      if (newPart == false || newPart == true) {
+        if (part != newPart) {
+          part = newPart;
+          needUpdate = true;
+          Serial.println("更新 part = " + String(part));
+        }
       } else {
         Serial.println("接收到无效 part 值: " + String(newPart));
       }
     }
     
-    if (operationMode == "manualMode") {
-      if (part == 0) { // 处理情景模式 (sceneMode) 命令
-        if (doc.containsKey("sceneMode")) {
-          String newSceneMode = doc["sceneMode"].as<String>();
-          if (sceneMode != newSceneMode) {
-            setSceneMode(newSceneMode);
-            sceneMode = newSceneMode;
-          }
+    // 保存sceneMode
+    if (doc.containsKey("sceneMode")) {
+      String newSceneMode = doc["sceneMode"].as<String>();
+      if (sceneMode != newSceneMode) {
+        sceneMode = newSceneMode;
+        needUpdate = true;
+        Serial.println("更新 sceneMode = " + sceneMode);
+      }
+    }
+    
+    // 保存color
+    if (doc.containsKey("color")) {
+      String newColor = doc["color"].as<String>();
+      if (currentBaseColorName != newColor) {
+        if (newColor == "white") {
+          currentColorBaseR = WHITE_MODE_R;
+          currentColorBaseG = WHITE_MODE_G;
+          currentColorBaseB = WHITE_MODE_B;
+          currentBaseColorName = "white";
+        } else if (newColor == "warm") {
+          currentColorBaseR = WARM_MODE_R;
+          currentColorBaseG = WARM_MODE_G;
+          currentColorBaseB = WARM_MODE_B;
+          currentBaseColorName = "warm";
+        } else if (newColor == "night") {
+          currentColorBaseR = NIGHT_MODE_R;
+          currentColorBaseG = NIGHT_MODE_G;
+          currentColorBaseB = NIGHT_MODE_B;
+          currentBaseColorName = "night";
         }
-      } else { // part == 1: 处理颜色(color) + 亮度(brightness) 命令
-        if (doc.containsKey("color")) {
-          String newColor = doc["color"].as<String>();
-          setBaseColorForManualMode(newColor);
+        needUpdate = true;
+        Serial.println("更新 color = " + currentBaseColorName);
+      }
+    }
+    
+    // 保存brightness
+    if (doc.containsKey("brightness")) {
+      float newBrightness = doc["brightness"].as<float>();
+      newBrightness = constrain(newBrightness, 1.0f, 5.0f);
+      if (abs(currentBrightnessLevel - newBrightness) > 0.01) {
+        currentBrightnessLevel = newBrightness;
+        needUpdate = true;
+        Serial.println("更新 brightness = " + String(currentBrightnessLevel));
+      }
+    }
+    
+    // 处理RGB直接控制
+    if (doc.containsKey("Red") || doc.containsKey("Green") || doc.containsKey("Blue")) {
+      bool colorChanged = false;
+      
+      if (doc.containsKey("Red")) {
+        int newRed = doc["Red"].as<int>();
+        if (manualRedValue != newRed) {
+          manualRedValue = newRed;
+          colorChanged = true;
         }
-        if (doc.containsKey("brightness")) {
-          float newBrightness = doc["brightness"].as<float>();
-          adjustBrightnessForManualMode(newBrightness);
+      }
+      if (doc.containsKey("Green")) {
+        int newGreen = doc["Green"].as<int>();
+        if (manualGreenValue != newGreen) {
+          manualGreenValue = newGreen;
+          colorChanged = true;
         }
-        if (doc.containsKey("Red") || doc.containsKey("Green") || doc.containsKey("Blue")) {
-          bool colorChanged = false;
-          
-          if (doc.containsKey("Red")) {
-            int newRed = doc["Red"].as<int>();
-            if (manualRedValue != newRed) {
-              manualRedValue = newRed;
-              colorChanged = true;
-            }
-          }
-          if (doc.containsKey("Green")) {
-            int newGreen = doc["Green"].as<int>();
-            if (manualGreenValue != newGreen) {
-              manualGreenValue = newGreen;
-              colorChanged = true;
-            }
-          }
-          if (doc.containsKey("Blue")) {
-            int newBlue = doc["Blue"].as<int>();
-            if (manualBlueValue != newBlue) {
-              manualBlueValue = newBlue;
-              colorChanged = true;
-            }
-          }
-          if (colorChanged) {
-            setLEDColor(manualRedValue, manualGreenValue, manualBlueValue);
-          }
+      }
+      if (doc.containsKey("Blue")) {
+        int newBlue = doc["Blue"].as<int>();
+        if (manualBlueValue != newBlue) {
+          manualBlueValue = newBlue;
+          colorChanged = true;
         }
+      }
+      
+      if (colorChanged && operationMode == "manualMode" && part == true) {
+        setLEDColor(manualRedValue, manualGreenValue, manualBlueValue);
+        return; // RGB直接控制优先，无需处理其他参数
+      }
+    }
+    
+    // 最后处理operationMode，这会实际应用设置
+    if (doc.containsKey("operationMode")) {
+      String newMode = doc["operationMode"].as<String>();
+      if (operationMode != newMode) {
+        Serial.println("设置操作模式为: " + newMode);
+        setOperationMode(newMode);
+      } else if (needUpdate && operationMode == "manualMode") {
+        // 如果没有模式变化但有其他参数变化，且在手动模式，应用更新
+        if (part == false) {
+          setSceneMode(sceneMode);
+        } else {
+          adjustBrightnessForManualMode(currentBrightnessLevel);
+        }
+      }
+    } else if (needUpdate && operationMode == "manualMode") {
+      // 如果没有指定模式但有参数变化，且在手动模式，应用更新
+      if (part == false) {
+        setSceneMode(sceneMode);
+      } else {
+        adjustBrightnessForManualMode(currentBrightnessLevel);
       }
     }
   }

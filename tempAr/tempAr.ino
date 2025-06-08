@@ -15,7 +15,7 @@
 // 定义全局状态变量的实际存储
 String operationMode = "manualMode";
 String voiceCommand = "None";
-int part = 0;
+bool part = false;
 String sceneMode = "Default"; // 初始情景模式
 int voiceReddata = 0;
 int voiceGreendata = 0;

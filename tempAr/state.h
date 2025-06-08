@@ -9,7 +9,7 @@ extern String operationMode;  // 操作模式: "autoMode", "manualMode", "voiceM
 extern String voiceCommand;     // 当前语音命令
 
 // part 表征手动模式下的子模式: 0 (预设情景模式) 或 1 (颜色+亮度调节)
-extern int part; // 默认设置为预设情景模式 (0: sceneMode)
+extern bool part; // 默认设置为预设情景模式 (0: sceneMode)
 
 //手动模式下part == 0 时，预设情景模式sceneMode
 extern String sceneMode; //sceneMode用于表示手动模式下的预设模式

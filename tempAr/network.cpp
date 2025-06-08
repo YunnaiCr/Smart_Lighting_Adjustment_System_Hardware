@@ -1,15 +1,15 @@
-// network.cpp
 #include "network.h"
-#include <time.h> // for time_t, struct tm, asctime, getLocalTime
-#include <string.h> // for strerror, although getLastSSLError is better
-#include <WiFiUdp.h> // Included for NTP client on ESP8266, implicitly used by configTime
-#include "config.h" // 包含配置信息
+#include <time.h>
+#include <string.h>
+#include <WiFiUdp.h>
+#include "config.h"
+
 BearSSL::WiFiClientSecure espClient;
 PubSubClient mqtt_client(espClient);
 
 // WiFi连接
 void connectToWiFi() {
-  WiFi.mode(WIFI_STA); // 设置为STA模式
+  WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
   Serial.print("连接WiFi...");
   while (WiFi.status() != WL_CONNECTED) {
@@ -26,7 +26,7 @@ void syncTime() {
   configTime(gmt_offset_sec, daylight_offset_sec, ntp_server);
   Serial.print("等待NTP时间同步: ");
   time_t now = time(nullptr);
-  while (now < 1672531200) { // 1672531200 is Jan 1, 2023 timestamp. Ensures time is somewhat sane.
+  while (now < 1672531200) {
     delay(500);
     Serial.print(".");
     now = time(nullptr);
@@ -42,10 +42,6 @@ void syncTime() {
 }
 
 // 连接MQTT服务器
-
-
-
-// network.h 或 network.cpp 中的 connectToMQTTBroker 函数
 bool connectToMQTTBroker() {
   BearSSL::X509List serverTrustedCA(ca_cert);
   espClient.setTrustAnchors(&serverTrustedCA);
@@ -55,15 +51,21 @@ bool connectToMQTTBroker() {
   if (mqtt_client.connect(client_id.c_str(), mqtt_username, mqtt_password)) {
     Serial.println("已连接到MQTT服务器");
     
-    // 订阅APP主题，接收命令和状态
-    if (mqtt_client.subscribe(mqtt_app_topic)) {
-      Serial.println("已订阅APP主题: " + String(mqtt_app_topic));
+    // 订阅命令和状态通道
+    if (mqtt_client.subscribe(mqtt_esp_topic)) {
+      Serial.println("已订阅命令通道: " + String(mqtt_esp_topic));
     } else {
-      Serial.println("订阅APP主题失败!");
+      Serial.println("订阅命令通道失败!");
     }
     
-    // 发送同步请求
-    if (mqtt_client.publish(mqtt_esp_topic, "sync")) {
+    if (mqtt_client.subscribe(mqtt_esp_status_topic)) {
+      Serial.println("已订阅状态通道: " + String(mqtt_esp_status_topic));
+    } else {
+      Serial.println("订阅状态通道失败!");
+    }
+    
+    // 发送同步请求(通过状态通道发送字符串)
+    if (mqtt_client.publish(mqtt_app_status_topic, "sync")) {
       Serial.println("已发送状态同步请求");
     } else {
       Serial.println("状态同步请求发送失败!");
