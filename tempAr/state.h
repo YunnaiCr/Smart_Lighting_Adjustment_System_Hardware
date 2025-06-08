@@ -36,6 +36,6 @@ extern int currentColorBaseB;
 extern String currentBaseColorName; // 默认值
 extern float currentBrightnessLevel; // 1-5 级，初始为 1
 
-// 新增一个全局变量，用于跟踪手动模式自启动以来是否被进入过
+// 手动模式自启动以来是否被进入过
 extern bool manualModeEverEntered;
 #endif

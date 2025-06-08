@@ -2,8 +2,8 @@
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
 #include <time.h>
-#include <ArduinoJson.h> // 需要 ArduinoJson 库
-#include "JsonFactory.h" // 你的 JSON 构造工厂类
+#include <ArduinoJson.h> 
+#include "JsonFactory.h" 
 
 // 引入自定义头文件
 #include "config.h"
@@ -12,7 +12,7 @@
 #include "light_control.h"
 #include "mqtt_handler.h"
 
-// 定义全局状态变量的实际存储（在 state.h 中它们是 extern 声明的）
+// 定义全局状态变量的实际存储
 String operationMode = "manualMode";
 String voiceCommand = "None";
 int part = 0;

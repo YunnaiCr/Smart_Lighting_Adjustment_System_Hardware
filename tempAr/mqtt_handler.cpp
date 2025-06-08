@@ -6,11 +6,9 @@ void sendModeChangeToApp(const String& newMode) {
     Serial.println("MQTT未连接，无法发送模式变更通知");
     return;
   }
-  
   String jsonCmd = ConverseDataToJson(
     "operationMode", newMode
   );
-  
   if (mqtt_client.publish(mqtt_esp_topic, jsonCmd.c_str())) {
     Serial.println("已发送模式变更通知: " + jsonCmd);
   } else {
@@ -21,8 +19,9 @@ void sendModeChangeToApp(const String& newMode) {
 // 从语音模式切换到其他模式
 void switchFromVoiceMode(const String& newMode) {
   setOperationMode(newMode);
-  sendModeChangeToApp(newMode);
+  sendModeChangeToApp(newMode);//esp端用语音切换模式和app进行同步
 }
+
 // 状态字符串解析函数
 void parseStatusString(const String& statusStr) {
   int index = 0;
@@ -36,7 +35,7 @@ void parseStatusString(const String& statusStr) {
       Serial.println("状态字符串格式错误: " + statusStr);
       return;
     }
-    if(i == 4 || index == -1) { // 修复了比较操作符
+    if(i == 4 || index == -1) {
       values[i] = statusStr.substring(lastIndex);
     } else {
       values[i] = statusStr.substring(lastIndex, index);
@@ -84,10 +83,14 @@ void parseStatusString(const String& statusStr) {
   
   // 根据颜色和亮度计算RGB值
   if(values[3].length() > 0 || values[4].length() > 0) {
-    int mappedBrightnessValue = map((int)(currentBrightnessLevel * 10), 10, 50, 255, 0);
-    manualRedValue = constrain((int)(currentColorBaseR + mappedBrightnessValue), 0, 255);
-    manualGreenValue = constrain((int)(currentColorBaseG + mappedBrightnessValue), 0, 255);
-    manualBlueValue = constrain((int)(currentColorBaseB + mappedBrightnessValue), 0, 255);
+    float scale = currentBrightnessLevel / 5.0f;
+    int scaledR = int(currentColorBaseR * scale);
+    int scaledG = int(currentColorBaseG * scale);
+    int scaledB = int(currentColorBaseB * scale);
+    
+    manualRedValue = constrain(255 - scaledR, 0, 255);
+    manualGreenValue = constrain(255 - scaledG, 0, 255);
+    manualBlueValue = constrain(255 - scaledB, 0, 255);
     Serial.printf("根据颜色和亮度更新RGB: (%d, %d, %d)\n", manualRedValue, manualGreenValue, manualBlueValue);
   }
   
@@ -110,7 +113,7 @@ void parseStatusString(const String& statusStr) {
   Serial.println("状态已完全应用");
 }
 
-// 发送状态字符串
+// 向app发送状态字符串
 void sendStatusString() {
   if (!mqtt_client.connected()) {
     Serial.println("MQTT未连接，无法发送状态");
@@ -118,7 +121,7 @@ void sendStatusString() {
   }
   
   // 构建状态字符串：operationMode,part,sceneMode,color,brightness
-  String statusStr = operationMode + "," + 
+  String statusStr = operationMode + "," +
                      String(part) + "," +
                      sceneMode + "," +
                      currentBaseColorName + "," +
@@ -147,10 +150,10 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   if (String(topic) == String(mqtt_app_topic)) {
     
     // 检查是否是同步请求
-    if (message == "sync") {
+   if (message.indexOf("sync") != -1 || message.equals("sync")) {
       Serial.println("收到APP同步请求，发送当前状态");
-      sendStatusString();
-      return;
+        sendStatusString();
+       return;
     }
     
     // 尝试解析为JSON (普通控制命令)
@@ -179,17 +182,8 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
     
     if (operationMode == "manualMode" && doc.containsKey("part")) {
       int newPart = doc["part"].as<int>();
-      if (newPart == 0 || newPart == 1) {  // 修复比较操作符
-        if (part != newPart) {
-          part = newPart;
-          Serial.print("已切换 manualMode 子模式为: ");
-          Serial.println(part == 0 ? "sceneMode (0)" : "colorBrightness (1)");
-          if (part == 0) {
-            setSceneMode(sceneMode);
-          } else {
-            setLEDColor(manualRedValue, manualGreenValue, manualBlueValue);
-          }
-        }
+      if (newPart == 0 || newPart == 1) {
+        handlePartChange(newPart); // 使用专门的处理函数
       } else {
         Serial.println("接收到无效 part 值: " + String(newPart));
       }

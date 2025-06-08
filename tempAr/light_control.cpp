@@ -80,29 +80,64 @@ void setBaseColorForManualMode(const String& colorName) {
 
 // 调整亮度
 void adjustBrightnessForManualMode(float level) {
+  // 1. 限制亮度等级到 [1.0, 5.0]
   currentBrightnessLevel = constrain(level, 1.0f, 5.0f);
-  // 假设 1 最暗，5 最亮
-  // 共阳极灯条，0 最亮，255 最暗
-  int mappedBrightnessValue = map((int)(currentBrightnessLevel * 10), 10, 50, 255, 0); // 1.0 -> 10, 5.0 -> 50
 
-  // 亮度调节是基于原始颜色基准和映射亮度值进行调整
-  manualRedValue = constrain((int)(currentColorBaseR + mappedBrightnessValue), 0, 255);
-  manualGreenValue = constrain((int)(currentColorBaseG + mappedBrightnessValue), 0, 255);
-  manualBlueValue = constrain((int)(currentColorBaseB + mappedBrightnessValue), 0, 255);
+  // scale ∈ [0.2, 1.0]
+float scale = currentBrightnessLevel / 5.0f;  
 
-  setLEDColor(manualRedValue, manualGreenValue, manualBlueValue);
-  Serial.printf("亮度等级设置为: %.1f, 对应 RGB: (%d, %d, %d)\n", currentBrightnessLevel, manualRedValue, manualGreenValue, manualBlueValue);
+// 先算出按比例缩放后的“亮度分量”
+int scaledR = int(currentColorBaseR * scale);
+int scaledG = int(currentColorBaseG * scale);
+int scaledB = int(currentColorBaseB * scale);
 
+// 再反转到共阳极的 PWM 值域（0→全亮, 255→全灭）
+manualRedValue   = constrain(255 - scaledR, 0, 255);
+manualGreenValue = constrain(255 - scaledG, 0, 255);
+manualBlueValue  = constrain(255 - scaledB, 0, 255);
+
+setLEDColor(manualRedValue, manualGreenValue, manualBlueValue);
+Serial.printf("亮度等级: %.1f (比例: %.2f), PWM: (%d, %d, %d)\n",
+              currentBrightnessLevel, scale,
+              manualRedValue, manualGreenValue, manualBlueValue);
+}
+
+// 处理part切换逻辑
+void handlePartChange(int newPart) {
+  if (part == newPart) return;
+  
+  part = newPart;
+  Serial.print("已切换 manualMode 子模式为: ");
+  Serial.println(part == 0 ? "sceneMode (0)" : "colorBrightness (1)");
+  
+  if (part == 0) {
+    // 切换到情景模式
+    setSceneMode(sceneMode);
+  } else {
+    adjustBrightnessForManualMode(currentBrightnessLevel);
+    
+  }
 }
 
 // 基于光敏传感器调整灯光
 void adjustLightingBasedOnSensor() {
   int sensorValue = analogRead(photoSensorPin);
-  int pwmValue = map(sensorValue, 0, 1023, 255, 0); // 将光敏值反向映射到PWM值（0-255）
-  // 确保PWM值在有效范围内
+  
+  // 添加阈值判断：当光敏值超过90%时关灯
+  const int LIGHT_THRESHOLD = 100;  // 10% of 1023
+  
+  if (sensorValue <= LIGHT_THRESHOLD) {
+    // 环境光过强，关闭灯光(共阳极下设为255)
+    setLEDColor(255, 255, 255);
+    Serial.println("环境光过强(>90%)，灯光已关闭");
+    return;
+  }
+  
+  // 正常情况下按亮度比例调节
+  int pwmValue = map(sensorValue, 0, 1023, 255, 0);
   pwmValue = constrain(pwmValue, 0, 255);
-
-  setLEDColor(pwmValue, pwmValue, pwmValue); // 设置白光
+  setLEDColor(pwmValue, pwmValue, pwmValue);
+  
 }
 
 // 检查语音命令
@@ -218,15 +253,15 @@ void checkVoiceCommands() {
       commandProcessed = true;
     }
     // 添加切换到手动模式的命令
-    else if (receivedData[0] == 0xB1 && receivedData[1] == 0xB1 &&
-             receivedData[2] == 0xB1 && receivedData[3] == 0xB1) { 
+    else if (receivedData[0] == 0xD2 && receivedData[1] == 0xD2 &&
+             receivedData[2] == 0xD2 && receivedData[3] == 0xD2) { 
       Serial.println("语音命令：切换到手动模式");
       switchFromVoiceMode("manualMode");
       return; // 直接返回，因为已经不在语音模式了
     }
     // 添加切换到自动模式的命令
-    else if (receivedData[0] == 0xB2 && receivedData[1] == 0xB2 &&
-             receivedData[2] == 0xB2 && receivedData[3] == 0xB2) {
+    else if (receivedData[0] == 0xD1 && receivedData[1] == 0xD1 &&
+             receivedData[2] == 0xD1 && receivedData[3] == 0xD1) {
       Serial.println("语音命令：切换到自动模式");
       switchFromVoiceMode("autoMode");
       return; // 直接返回，因为已经不在语音模式了
