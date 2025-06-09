@@ -1,3 +1,4 @@
+#include "IPAddress.h"
 // network.h
 #ifndef NETWORK_H
 #define NETWORK_H
@@ -15,5 +16,6 @@ extern PubSubClient mqtt_client;
 void connectToWiFi();
 void syncTime();
 bool connectToMQTTBroker();
+String ipToString(IPAddress ip);
 
 #endif

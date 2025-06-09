@@ -1,10 +1,29 @@
 // config.h
 #ifndef CONFIG_H
 #define CONFIG_H
+#include <Arduino.h>
+#include <ESP8266WiFi.h>
+#include <WiFiClient.h>
+#include <Arduino.h>
+#include <vector>
 
 // WiFi设置
+#define DISCOVERY_PORT 9200
+#define TCP_PORT 9000
+#define DEVICE_ID "ESP_ROOM_1"
+#define TIMEOUT_MS 30000
+
 extern const char *ssid;
 extern const char *password;
+
+struct Peer {
+  String id;
+  IPAddress ip;
+  WiFiClient client;
+  unsigned long lastActive;
+  bool isConnected() { return client.connected(); }
+};
+extern std::vector<Peer> peers;
 
 // MQTT设置
 extern const char *mqtt_broker;

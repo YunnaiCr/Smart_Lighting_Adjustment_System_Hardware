@@ -21,6 +21,10 @@ void connectToWiFi() {
   Serial.println(WiFi.localIP());
 }
 
+String ipToString(IPAddress ip) {
+  return String(ip[0]) + "." + String(ip[1]) + "." + String(ip[2]) + "." + String(ip[3]);
+}
+
 // 时间同步
 void syncTime() {
   configTime(gmt_offset_sec, daylight_offset_sec, ntp_server);

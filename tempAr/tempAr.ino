@@ -11,6 +11,9 @@
 #include "network.h"
 #include "light_control.h"
 #include "mqtt_handler.h"
+#include "DiscoveryManager.h"
+#include "TCPServerManager.h"
+#include "ConnectionManager.h"
 
 // 定义全局状态变量的实际存储
 String operationMode = "manualMode";
@@ -46,6 +49,11 @@ void setup() {
   mqtt_client.setServer(mqtt_broker, mqtt_port);
   mqtt_client.setCallback(mqttCallback);
 
+  // 寻找同局域网ESP板
+  initDiscovery();
+  startTCPServer();
+  sendDiscoveryPacket();
+
   // 第一次进入手动模式的逻辑放在 setOperationMode 中处理
   setOperationMode("manualMode"); // 这会初始化 part 和 sceneMode 并设置灯光
   manualModeEverEntered = true; // 确保下次不会重复默认初始化
@@ -54,7 +62,21 @@ void setup() {
   Serial.println("系统初始化完成");
 }
 
+void onDiscovered(String id, IPAddress ip) {
+  Serial.printf("Discovered: %s at %s\n", id.c_str(), ip.toString().c_str());
+  addOrUpdatePeer(id, ip);
+}
+
+void onMessage(WiFiClient &client, String msg) {
+  Serial.printf("Received: %s\n", msg.c_str());
+  // 接收板间通信后的操作
+}
+
 void loop() {
+  handleDiscoveryPacket(onDiscovered);
+  acceptTCPConnections(onMessage);
+  cleanConnections();
+
   if (!mqtt_client.connected()) {
     unsigned long now = millis();
     if (now - lastReconnectAttempt > 5000) {
@@ -75,6 +97,18 @@ void loop() {
     checkVoiceCommands();
   }
 
+  // 发送板间消息，这个只是测试例
+  static unsigned long last = 0;
+  if (millis() - last >10000) {
+    last = millis();
+    // 板名 + 要发的信息，建议放在专门的文件里，比如voice的文件
+    // 板名记得改，在config.h里
+    // 函数返回一个bool值，表示发送成功与否
+    sendToPeer("ESP_ROOM_2", "ping");
+  }
+
   delay(50);
   yield();
 }
+
+

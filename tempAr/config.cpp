@@ -1,8 +1,10 @@
-#include "config.h" // 确保包含 config.h 以获取声明
-#include <Arduino.h>
+#include "config.h"
+
 // WiFi设置
 const char *ssid = "wyxbupt";
 const char *password = "wuyuxin155";
+
+std::vector<Peer> peers;
 
 // MQTT设置
 const char *mqtt_broker = "jfe2a84f.ala.cn-hangzhou.emqxsl.cn";
