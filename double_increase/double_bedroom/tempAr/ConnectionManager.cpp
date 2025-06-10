@@ -13,14 +13,15 @@ void addOrUpdatePeer(String id, IPAddress ip) {
   }
   Peer newPeer = { id, ip };
   peers.push_back(newPeer);
+  Serial.println("添加新设备：" + id);
 }
 
 bool sendToPeer(String id, const String &msg) {
   for (auto &p : peers) {
-    if (p.id == id)
-    {
+    if (p.id == id) {
       if (!p.client.connected()) {
         Serial.println("Connecting to " + id);
+        p.client.stop();  // 清理残留
         if (!p.client.connect(p.ip, TCP_PORT)) {
           Serial.println("Connection failed to " + id);
           return false;

@@ -1,8 +1,8 @@
 #include "config.h"
 
 // WiFi设置
-const char *ssid = "wyxbupt";
-const char *password = "wuyuxin155";
+const char *ssid = "Divinity";
+const char *password = "Azathoth";
 
 std::vector<Peer> peers;
 

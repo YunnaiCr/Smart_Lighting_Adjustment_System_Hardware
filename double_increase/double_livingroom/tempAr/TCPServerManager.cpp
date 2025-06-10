@@ -13,35 +13,48 @@ void startTCPServer() {
   server.begin();
 }
 
-void acceptTCPConnections(void (*onMessage)(WiFiClient &client, String message)) {
-  while (WiFiClient newClient = server.available()) {
-    // 如果有新连接并且TCP通道连接着，则可能需要替换新连接
-    if (newClient.connected()) {
-      IPAddress ip = newClient.remoteIP();
-      String remoteId = ipToString(ip);
-      
-      for (auto &p : peers) {
-        if (ipToString(p.ip) == remoteId) {
-          // 如果旧连接还活着，就不替换
-          if (p.client && p.client.connected()) {
-            Serial.println("已有连接存在，不替换: " + p.id);
-            p.lastActive = millis();
-            newClient.stop(); // 拒绝重复连接
-          } 
-          else {
-            p.client = newClient;
-            p.lastActive = millis();
-            Serial.println("接收新连接来自: " + p.id);
-          }
-          break;
-        }
-      }
+void acceptTCPConnections() {
+  WiFiClient newClient = server.available();
+  if (!newClient) return;
 
-      // 如果有数据，就处理
-      if (newClient.available()) {
-        String msg = newClient.readStringUntil('\n');
-        onMessage(newClient, msg);
+  Serial.print("新连接尝试，连接状态: ");
+  Serial.println(newClient.connected() ? "已连接" : "未连接");
+
+  IPAddress ip = newClient.remoteIP();
+  String remoteId = ipToString(ip);
+  Serial.print("客户端IP: ");
+  Serial.println(remoteId);
+
+  for (auto &p : peers) {
+    if (p.id == remoteId) {
+      if (p.client.connected()) {
+        Serial.println("替换旧连接: " + p.id);
+        p.client.stop();
+      }
+      p.client = newClient;
+      p.lastActive = millis();
+      Serial.println("新连接来自: " + p.id);
+      return;
+    }
+  }
+
+  Serial.println("新连接来自未知Peer，自动添加: " + remoteId);
+  peers.push_back({remoteId, ip, newClient, millis()});
+}
+
+void readMessagesFromPeers(void (*onMessage)(WiFiClient &client, String message)) {
+  for (auto &p : peers) {
+    if (p.client && p.client.connected()) {
+      while (p.client.available()) {
+        String msg = p.client.readStringUntil('\n');
+        Serial.print("收到来自 ");
+        Serial.print(p.id);
+        Serial.print(" 的消息: ");
+        Serial.println(msg);
+        onMessage(p.client, msg);
+        p.lastActive = millis();
       }
     }
   }
 }
+

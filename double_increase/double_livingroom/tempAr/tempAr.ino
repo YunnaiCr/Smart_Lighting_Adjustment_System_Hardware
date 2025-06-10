@@ -85,8 +85,9 @@ void onMessage(WiFiClient &client, String msg) {
 
 void loop() {
   handleDiscoveryPacket(onDiscovered);
-  acceptTCPConnections(onMessage);
-  cleanConnections();
+  acceptTCPConnections();  // 只处理新连接
+  readMessagesFromPeers(onMessage);  // 处理所有客户端消息
+  cleanConnections();  // 清理超时连接
 
   if (!mqtt_client.connected()) {
     unsigned long now = millis();
@@ -112,12 +113,12 @@ void loop() {
 
   // 发送板间消息，这个只是测试例
   static unsigned long last = 0;
-  if (millis() - last >10000) {
+  if (millis() - last >1000) {
     last = millis();
     // 板名 + 要发的信息，建议放在专门的文件里，比如voice的文件
     // 板名记得改，在config.h里
     // 函数返回一个bool值，表示发送成功与否
-    sendToPeer("ESP_ROOM_2", "ping");
+    sendToPeer(REMOTE_ESP_ID, "ping");
   }
 
   delay(50);

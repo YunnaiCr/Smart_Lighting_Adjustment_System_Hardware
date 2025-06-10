@@ -32,6 +32,7 @@ void handleDiscoveryPacket(void (*onDiscovered)(String id, IPAddress ip)) {
           udp.write((const uint8_t*)responsePrefix, strlen(responsePrefix));
           udp.write((const uint8_t*)DEVICE_ID, strlen(DEVICE_ID));
           udp.endPacket();
+          if (onDiscovered) onDiscovered(otherID, udp.remoteIP());
         }
       }
       else if (msg.startsWith("RESPONSE:")) {

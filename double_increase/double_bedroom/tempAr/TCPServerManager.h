@@ -4,4 +4,5 @@
 #include <Arduino.h>
 
 void startTCPServer();
-void acceptTCPConnections(void (*onMessage)(WiFiClient &client, String message));
+void acceptTCPConnections();
+void readMessagesFromPeers(void (*onMessage)(WiFiClient &client, String message));
